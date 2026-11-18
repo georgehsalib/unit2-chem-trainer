@@ -395,6 +395,7 @@ footer.foot{color:var(--muted);font-size:.82rem;padding-bottom:32px;display:flex
   .toolbar .grp{flex:1;min-width:0}.toolbar .seg{display:flex;flex:1}
   #ptBtn{min-height:38px;width:42px;padding:0}#ptBtn .ptl{display:none}.toolbar .seg button{flex:1;padding-inline:6px}
   .answer-row .btn{flex:1 1 100%}
+  #iD{display:grid;grid-template-columns:1fr 1fr;width:100%}#iD button:nth-child(2n){border-right:0}#iD button:nth-child(-n+2){border-bottom:1px solid var(--line)}
 }
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none !important;transition:none !important}}
 </style>
@@ -410,6 +411,7 @@ footer.foot{color:var(--muted);font-size:.82rem;padding-bottom:32px;display:flex
     <nav class="tabs" role="tablist" aria-label="Sections">
       <button role="tab" id="tab-practice" data-v="practice" aria-selected="true">Practice</button>
       <button role="tab" id="tab-cards" data-v="cards" aria-selected="false" aria-label="Flashcards"><span class="full">Flashcards</span><span class="short">Cards</span></button>
+      <button role="tab" id="tab-ions" data-v="ions" aria-selected="false" aria-label="Polyatomic ion quiz"><span class="full">Ion quiz</span><span class="short">Ions</span></button>
       <button role="tab" id="tab-test" data-v="test" aria-selected="false" aria-label="Mock test"><span class="full">Mock test</span><span class="short">Test</span></button>
       <button role="tab" id="tab-ref" data-v="ref" aria-selected="false" aria-label="Reference"><span class="full">Reference</span><span class="short">Ref</span></button>
       <button role="tab" id="tab-tools" data-v="tools" aria-selected="false">Tools</button>
@@ -459,6 +461,11 @@ footer.foot{color:var(--muted);font-size:.82rem;padding-bottom:32px;display:flex
       </div>
     </div>
     <p class="hint">Right arrow = I know it, left arrow = study again. “Study again” puts the card at the back of this round.</p>
+  </section>
+
+  <!-- POLYATOMIC ION QUIZ -->
+  <section class="view" id="v-ions" hidden>
+    <div id="ionBox" class="card" aria-live="polite"></div>
   </section>
 
   <!-- MOCK TEST -->
@@ -2659,7 +2666,7 @@ const gradeOf=p=>(GRADES.find(g=>p>=g[0])||[0,"F"])[1];
 const FMT_NAME={mix:"Mixed",mc:"Multiple choice",typed:"Written"};
 /* Saved test records are rebuilt from their numbers, so nothing read from storage is ever used as HTML. */
 const cleanTest=t=>t&&typeof t.p==="number"&&typeof t.n==="number"&&t.p>=0&&t.p<=100?{p:Math.round(t.p),n:Math.round(t.n),g:gradeOf(Math.round(t.p)),fmt:FMT_NAME[t.fmt]?t.fmt:"mix",d:String(t.d||"").replace(/[^0-9-]/g,"").slice(0,10)}:null;
-const S=Object.assign({stats:{},kinds:{},lessons:LESSON_IDS.slice(),fmt:"mix",streak:0,best:0,known:[],bestTest:null,tests:[],view:"practice",recent:[],missed:[],theme:"auto",focus:null,deck:"vocab",testN:30,testFmt:"mix"},load(KEY,{}));
+const S=Object.assign({stats:{},kinds:{},lessons:LESSON_IDS.slice(),fmt:"mix",streak:0,best:0,known:[],bestTest:null,tests:[],view:"practice",recent:[],missed:[],theme:"auto",focus:null,deck:"vocab",testN:30,testFmt:"mix",ionN:"all",ionDir:"mix",ionFmt:"mix"},load(KEY,{}));
 (function tidy(){
   S.lessons=LESSON_IDS.filter(x=>Array.isArray(S.lessons)&&S.lessons.includes(x));
   if(!S.lessons.length)S.lessons=LESSON_IDS.slice();
@@ -2673,13 +2680,16 @@ const S=Object.assign({stats:{},kinds:{},lessons:LESSON_IDS.slice(),fmt:"mix",st
   if(!["mix","mc","typed"].includes(S.fmt))S.fmt="mix";
   if(!["mix","mc","typed"].includes(S.testFmt))S.testFmt="mix";
   if(![20,30,45].includes(S.testN))S.testN=30;
+  if(!["all",10].includes(S.ionN))S.ionN="all";
+  if(!["mix","n2f","f2n","charge"].includes(S.ionDir))S.ionDir="mix";
+  if(!["mix","mc","typed"].includes(S.ionFmt))S.ionFmt="mix";
   if(S.focus!=null&&!((S.focus in KIND)||(isConcept(String(S.focus))&&LESSON[String(S.focus).slice(2)])))S.focus=null;
   if(!DECKS.some(d=>d[0]===S.deck))S.deck="vocab";
   if(!["auto","light","dark"].includes(S.theme))S.theme="auto";
-  if(!["practice","cards","test","ref","tools","progress"].includes(S.view))S.view="practice";
+  if(!["practice","cards","ions","test","ref","tools","progress"].includes(S.view))S.view="practice";
   S.streak=+S.streak||0;S.best=+S.best||0;
 })();
-function save(){store(KEY,{stats:S.stats,kinds:S.kinds,lessons:S.lessons,fmt:S.fmt,streak:S.streak,best:S.best,known:S.known,bestTest:S.bestTest,tests:S.tests.slice(-10),view:S.view,recent:S.recent.slice(-80),missed:S.missed.slice(-60),theme:S.theme,focus:S.focus,deck:S.deck,testN:S.testN,testFmt:S.testFmt})}
+function save(){store(KEY,{stats:S.stats,kinds:S.kinds,lessons:S.lessons,fmt:S.fmt,streak:S.streak,best:S.best,known:S.known,bestTest:S.bestTest,tests:S.tests.slice(-10),view:S.view,recent:S.recent.slice(-80),missed:S.missed.slice(-60),theme:S.theme,focus:S.focus,deck:S.deck,testN:S.testN,testFmt:S.testFmt,ionN:S.ionN,ionDir:S.ionDir,ionFmt:S.ionFmt})}
 function addStat(q,ok){
   const s=S.stats[q.L];s.n++;if(ok)s.r++;
   const k=S.kinds[q.kind]||(S.kinds[q.kind]={r:0,n:0});k.n++;if(ok)k.r++;
@@ -2865,6 +2875,7 @@ function fcNext(know){
 }
 
 /* ====================== mock test ====================== */
+const segHTML=(id,opts,curv)=>'<div class="seg" id="'+id+'">'+opts.map(([v,t])=>'<button type="button" data-v="'+v+'" aria-pressed="'+(String(curv)===String(v))+'">'+t+"</button>").join("")+"</div>";
 const T={phase:"intro",qs:[],i:0,res:[],retest:false,early:false,counted:false};
 function startTest(qs,retest){Object.assign(T,{qs,i:0,res:[],retest:!!retest,early:false,counted:false,phase:"q"});renderTest();try{window.scrollTo(0,0)}catch(e){}}
 function testDone(ok,given){
@@ -2883,7 +2894,7 @@ const reviewItem=(x,i,buttons)=>{
 function renderTest(){
   const box=$("testBox");
   if(T.phase==="intro"){
-    const b=S.bestTest,seg=(id,opts,curv)=>'<div class="seg" id="'+id+'">'+opts.map(([v,t])=>'<button type="button" data-v="'+v+'" aria-pressed="'+(String(curv)===String(v))+'">'+t+"</button>").join("")+"</div>";
+    const b=S.bestTest,seg=segHTML;
     box.innerHTML='<h2 class="ttl">A practice Unit 2 test</h2><p class="sub">Modules 6, 7 and 9 and the bonding lab.'+(b?' Your best so far: <b>'+b.p+"% ("+b.g+")</b>.":"")+"</p>"
       +'<div class="row"><span class="small muted">Questions</span>'+seg("tN",[[20,"20"],[30,"30"],[45,"45"]],S.testN)+"</div>"
       +'<div class="row"><span class="small muted">Answer style</span>'+seg("tF",[["mix","Mixed"],["mc","Multiple choice"],["typed","Written"]],S.testFmt)+"</div>"
@@ -2940,6 +2951,80 @@ function renderTest(){
   if($("retest"))$("retest").onclick=()=>startTest(shuffle(miss.map(x=>{const q=Object.assign({},x.q,{skipped:false,revealed:false});if(q.type==="mc"){const c=q.choices[q.ai];q.choices=shuffle(q.choices);q.ai=q.choices.indexOf(c)}return q})),true);
 }
 
+/* ====================== polyatomic ion quiz ====================== */
+/* One question per ion on the class list, with the answer and memory tip after each. Misses can be retried with fresh questions. */
+const IQ={phase:"intro",qs:[],i:0,res:[],done:false};
+const ION_DIRS=[["mix","Mixed"],["n2f","Name → formula"],["f2n","Formula → name"],["charge","Charge"]];
+function buildIonQuiz(ions,dir,fmt){
+  return shuffle(ions).map(f=>{
+    const q=GEN.polyIon(fmt,{ion:f,v:dir==="mix"?pick(["n2f","f2n","charge"]):dir});
+    q.L=KIND.polyIon[0];q.kind="polyIon";q.ion=f;q.key="polyIon:"+f+"→"+q.answerText;
+    return q;
+  });
+}
+function startIons(ions){Object.assign(IQ,{phase:"q",qs:buildIonQuiz(ions,S.ionDir,S.ionFmt),i:0,res:[],done:false});renderIons();try{window.scrollTo(0,0)}catch(e){}}
+function ionDone(ok,html,given){
+  if(IQ.done)return;
+  IQ.done=true;
+  const q=IQ.qs[IQ.i],last=IQ.i>=IQ.qs.length-1;
+  IQ.res.push({q,ok,given});addStat(q,ok);save();renderStats();
+  $("iFb").innerHTML=html+'<div class="row"><button class="btn primary" id="iNext" type="button">'+(last?"See my score":"Next ion")+"</button></div>";
+  $("iNext").onclick=ionNext;
+  try{$("iNext").focus({preventScroll:true});$("iFb").scrollIntoView({block:"nearest"})}catch(e){}
+}
+function ionNext(){IQ.i++;IQ.done=false;if(IQ.i>=IQ.qs.length)IQ.phase="done";renderIons();try{window.scrollTo(0,0)}catch(e){}}
+function ionAnswerMC(i){
+  if(IQ.done)return;
+  const q=IQ.qs[IQ.i],ok=i===q.ai;
+  $("ionBox").querySelectorAll(".choice").forEach(b=>{b.disabled=true;const k=+b.dataset.i;if(k===q.ai)b.classList.add("right");else if(k===i)b.classList.add("wrong")});
+  ionDone(ok,verdictHTML(q,ok),q.choices[i].h);
+}
+function ionAnswerTyped(v){
+  if(IQ.done||!String(v).trim())return;
+  const q=IQ.qs[IQ.i];let ok=false,note="";
+  try{ok=!!q.accept(v)}catch(e){}
+  if(!ok&&q.note)try{note=q.note(v)||""}catch(e){}
+  $("iAns").disabled=true;$("iAnsForm").querySelector("button").disabled=true;
+  ionDone(ok,verdictHTML(q,ok,ok?"":'<div class="small">You wrote: <b>'+esc(v)+"</b></div>"+(note?'<div class="small"><b>'+esc(note)+"</b></div>":"")),esc(v));
+}
+function renderIons(){
+  const box=$("ionBox"),all=POLY.map(p=>p.f);
+  if(IQ.phase==="intro"){
+    box.innerHTML='<h2 class="ttl">Polyatomic ion quiz</h2><p class="sub">The '+POLY.length+" polyatomic ions on your class list. One question per ion, with the answer and a memory tip after each.</p>"
+      +'<div class="row"><span class="small muted">Ions</span>'+segHTML("iN",[["all","All "+POLY.length],[10,"10 random"]],S.ionN)+"</div>"
+      +'<div class="row"><span class="small muted">Ask for</span>'+segHTML("iD",ION_DIRS,S.ionDir)+"</div>"
+      +'<div class="row"><span class="small muted">Answer style</span>'+segHTML("iF",[["mix","Mixed"],["mc","Multiple choice"],["typed","Written"]],S.ionFmt)+"</div>"
+      +'<p class="small muted">Your answers count toward Lesson 6.3 on the Progress tab. Write formulas like <b>SO4 2-</b> or <b>NH4 +</b>.</p>'
+      +'<div class="row"><button class="btn primary" id="iStart" type="button">Start the quiz</button></div>';
+    $("iN").querySelectorAll("button").forEach(x=>x.onclick=()=>{S.ionN=x.dataset.v==="all"?"all":+x.dataset.v;save();renderIons()});
+    $("iD").querySelectorAll("button").forEach(x=>x.onclick=()=>{S.ionDir=x.dataset.v;save();renderIons()});
+    $("iF").querySelectorAll("button").forEach(x=>x.onclick=()=>{S.ionFmt=x.dataset.v;save();renderIons()});
+    $("iStart").onclick=()=>startIons(S.ionN==="all"?all:shuffle(all).slice(0,S.ionN));
+    return;
+  }
+  if(IQ.phase==="q"){
+    const q=IQ.qs[IQ.i];
+    box.innerHTML='<div class="eyebrow">'+lesTag(q.L)+'<span class="qn">Ion <b>'+(IQ.i+1)+"</b> of "+IQ.qs.length+'</span></div><div class="progress"><i style="width:'+(100*IQ.i/IQ.qs.length)+'%"></i></div>'
+      +qBody(q)+(q.type==="mc"?choicesHTML(q):inputHTML(q,"iAns","Check"))+'<div id="iFb"></div>'
+      +'<div class="row"><button class="btn sm" id="iQuit" type="button">End quiz</button></div>';
+    if(q.type==="mc")box.querySelectorAll(".choice").forEach(b=>b.onclick=()=>ionAnswerMC(+b.dataset.i));
+    else{
+      $("iAnsForm").onsubmit=e=>{e.preventDefault();ionAnswerTyped($("iAns").value)};
+      if(!coarse())try{$("iAns").focus({preventScroll:true})}catch(e){}
+    }
+    $("iQuit").onclick=()=>{IQ.phase="done";renderIons();try{window.scrollTo(0,0)}catch(e){}};
+    return;
+  }
+  /* score */
+  const n=IQ.res.length,r=IQ.res.filter(x=>x.ok).length,p=n?Math.round(100*r/n):0,miss=IQ.res.filter(x=>!x.ok);
+  box.innerHTML='<h2 class="ttl">'+(n?r+" of "+n+" correct · "+p+"%":"No answers yet")+'</h2><p class="sub">'
+    +(!n?"You ended the quiz before answering any ions.":miss.length?"Study the "+plural(miss.length,"ion")+" below, then retry them.":"Every ion right. Try a different question type or written answers next.")+"</p>"
+    +'<div class="row">'+(miss.length?'<button class="btn primary" id="iRetry" type="button">Retry the '+plural(miss.length,"ion")+" I missed</button>":"")+'<button class="btn" id="iNew" type="button">New quiz</button></div>'
+    +(miss.length?'<h4>Ions to study</h4><div class="review">'+miss.map((x,i)=>reviewItem(x,i)).join("")+"</div>":"");
+  $("iNew").onclick=()=>{IQ.phase="intro";renderIons()};
+  if($("iRetry"))$("iRetry").onclick=()=>startIons(miss.map(x=>x.q.ion));
+}
+
 /* ====================== progress ====================== */
 function renderProgress(){
   const tot=LESSON_IDS.reduce((a,L)=>({r:a.r+S.stats[L].r,n:a.n+S.stats[L].n}),{r:0,n:0});
@@ -2969,13 +3054,14 @@ function renderProgress(){
 }
 
 /* ====================== wiring ====================== */
-const VIEWS=["practice","cards","test","ref","tools","progress"];
+const VIEWS=["practice","cards","ions","test","ref","tools","progress"];
 function setView(v){
   S.view=v;save();
   document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected",String(b.dataset.v===v)));
   VIEWS.forEach(x=>$("v-"+x).hidden=x!==v);
   if(v==="progress")renderProgress();
   if(v==="test"&&T.phase==="intro")renderTest();
+  if(v==="ions"&&IQ.phase==="intro")renderIons();
 }
 function applyTheme(){
   const r=document.documentElement;
@@ -3012,6 +3098,10 @@ function init(){
       if(!answered&&cur.type==="mc"&&/^[1-9]$/.test(e.key)){const i=+e.key-1;if(i<cur.choices.length)answerMC(i)}
       else if(answered&&e.key==="Enter"&&!e.target.matches("button")){e.preventDefault();nextQuestion()}
     }
+    if(S.view==="ions"&&IQ.phase==="q"){const q=IQ.qs[IQ.i];
+      if(!IQ.done&&q.type==="mc"&&/^[1-9]$/.test(e.key)){const i=+e.key-1;if(i<q.choices.length)ionAnswerMC(i)}
+      else if(IQ.done&&e.key==="Enter"&&!e.target.matches("button")){e.preventDefault();ionNext()}
+    }
     if(S.view==="test"&&T.phase==="q"){const q=T.qs[T.i];if(q&&q.type==="mc"&&/^[1-9]$/.test(e.key)){const i=+e.key-1;if(i<q.choices.length)testChoice(i)}}
     if(S.view==="cards"){
       if(e.target.matches("button")&&(e.key===" "||e.key==="Enter"))return;
@@ -3019,13 +3109,13 @@ function init(){
       else if(e.key==="ArrowRight")fcNext(true);else if(e.key==="ArrowLeft")fcNext(false);
     }
   });
-  renderChips();renderFocus();renderStats();renderCardChips();buildDeck();renderRef();renderTools();renderTest();nextQuestion();setView(S.view);
+  renderChips();renderFocus();renderStats();renderCardChips();buildDeck();renderRef();renderTools();renderTest();renderIons();nextQuestion();setView(S.view);
 }
 
 /* ====================== start ====================== */
 /* The same file runs in Node for the tests, where there is no page to draw. */
 const __u2={GEN,KIND,KINDS_OF,LESSONS,LESSON_IDS,MODS,BANK,BANK6,BANK9,BANKLAB,CARDS,DECKS,POLY,PT,EL,AM,M,HYD,LAB,CATS,ANION,S,
-  makeQ,kindsFor,bankQ,bankMcOnly,buildTest,gradeOf,compound,
+  makeQ,kindsFor,bankQ,bankMcOnly,buildTest,buildIonQuiz,gradeOf,compound,
   parseNum,parseCharge,parseFormula,normName,normFormula,sameFormula,sameCounts,ionAccept,within1,fmtNum,F,U,plain,
   molarMassOf,massLine,calcMolar,convert,empiricalSolve,empiricalSteps,particleWord};
 if(typeof globalThis!=="undefined")globalThis.__u2=__u2;
